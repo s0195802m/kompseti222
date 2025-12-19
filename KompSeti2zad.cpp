@@ -1,80 +1,195 @@
-﻿#include <winsock2.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <iostream>
 #include <string>
 
-#pragma comment(lib, "ws2_32.lib")
 
 using namespace std;
 
-struct Employee {
+#pragma comment(lib, "ws2_32.lib")
+
+#define SRV_PORT 1234
+
+
+struct Emp {
     char name[50];
     int projects;
     int overtime;
     int efficiency;
     int initiatives;
-};
+} E;
+
+string calcBonus() {
+    int score = E.projects * 2 + E.overtime + E.efficiency * 3 + E.initiatives * 2;
+
+    if (score < 10) return "NO_BONUS";
+    else if (score < 20) return "STANDARD_BONUS";
+    else if (score < 30) return "MEDIUM_BONUS";
+    else return "HIGH_BONUS";
+}
 
 int main() {
     setlocale(LC_ALL, "Russian");
 
-    WSADATA w;
-    WSAStartup(MAKEWORD(2, 2), &w);
+    WSADATA wsa;
+    SOCKET servSock, cliSock;
+    sockaddr_in servAddr, cliAddr;
+    int cliSize = sizeof(cliAddr);
 
-    SOCKET serv = socket(AF_INET, SOCK_STREAM, 0);
+    WSAStartup(MAKEWORD(2, 2), &wsa);
 
-    sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(1234);
+    servSock = socket(AF_INET, SOCK_STREAM, 0);
 
-    bind(serv, (sockaddr*)&addr, sizeof(addr));
-    listen(serv, 5);
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_addr.s_addr = INADDR_ANY;
+    servAddr.sin_port = htons(SRV_PORT);
 
-    cout << "Сервер запущен. Ожидание клиента...\n";
+    bind(servSock, (sockaddr*)&servAddr, sizeof(servAddr));
+    listen(servSock, SOMAXCONN);
+
+    cout << "TCP сервер запущен... Ожидание данных" << endl;
 
     while (true) {
-        sockaddr_in cli;
-        int cl = sizeof(cli);
+        cliSock = accept(servSock, (sockaddr*)&cliAddr, &cliSize);
 
-        SOCKET client = accept(serv, (sockaddr*)&cli, &cl);
-        cout << "Клиент подключился.\n";
+        char ip[INET_ADDRSTRLEN];
+        InetNtopA(AF_INET, &(cliAddr.sin_addr), ip, INET_ADDRSTRLEN);
+        cout << "Клиент подключен: " << ip << endl;
 
         while (true) {
-            Employee E;
-            int r = recv(client, (char*)&E, sizeof(E), 0);
+            int received = recv(cliSock, (char*)&E, sizeof(E), 0);
 
-            if (r <= 0) {
-                cout << "Клиент отключился.\n";
+            if (received <= 0) {
+                cout << "Клиент отключился" << endl;
                 break;
             }
 
             if (string(E.name) == "exit") {
-                cout << "Клиент завершил работу.\n";
+                cout << "Клиент вышел" << endl;
                 break;
             }
 
-            cout << "\nПолучены данные:\n";
-            cout << "Имя: " << E.name << endl;
-            cout << "Проекты: " << E.projects << endl;
-            cout << "Сверхурочные: " << E.overtime << endl;
-            cout << "Эффективность: " << E.efficiency << endl;
-            cout << "Инициативы: " << E.initiatives << endl;
+            cout << "Данные: " << E.name << endl;
+            cout << "Проекты: " << E.projects
+                << ", Сверхурочные: " << E.overtime
+                << ", Эффективность: " << E.efficiency
+                << ", Инициативы: " << E.initiatives << endl;
 
-            int score = E.projects * 2 + E.overtime + E.efficiency * 3 + E.initiatives * 2;
+            string bonus = calcBonus();
+            cout << "Код премии: " << bonus << endl;
 
-            string bonus;
-            if (score < 10) bonus = "NO_BONUS";
-            else if (score < 20) bonus = "STANDARD_BONUS";
-            else if (score < 30) bonus = "MEDIUM_BONUS";
-            else bonus = "HIGH_BONUS";
-
-            send(client, bonus.c_str(), bonus.size() + 1, 0);
+            send(cliSock, bonus.c_str(), bonus.size() + 1, 0);
         }
 
-        closesocket(client);
+        closesocket(cliSock);
+        cout << "Соединение закрыто" << endl;
     }
 
-    closesocket(serv);
+    closesocket(servSock);
+    WSACleanup();
+    return 0;
+}
+
+
+client
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iostream>
+#include <string>
+
+
+using namespace std;
+
+#pragma comment(lib, "ws2_32.lib")
+
+
+#define SRV_HOST "127.0.0.1"
+#define SRV_PORT 1234
+#define BUF_SIZE 64
+
+struct Emp {
+    char name[50];
+    int projects;
+    int overtime;
+    int efficiency;
+    int initiatives;
+} E;
+
+string getBonusText(const string& code) {
+    if (code == "NO_BONUS") return "Премия не назначена";
+    else if (code == "STANDARD_BONUS") return "Стандартная премия (10% от оклада)";
+    else if (code == "MEDIUM_BONUS") return "Средняя премия (25% от оклада)";
+    else if (code == "HIGH_BONUS") return "Высокая премия (50% от оклада)";
+    else return "Неизвестный код";
+}
+
+int main() {
+    setlocale(LC_ALL, "Russian");
+
+    WSADATA wsa;
+    SOCKET sock;
+    sockaddr_in servAddr;
+
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_port = htons(SRV_PORT);
+    InetPtonA(AF_INET, SRV_HOST, &servAddr.sin_addr);
+
+    if (connect(sock, (sockaddr*)&servAddr, sizeof(servAddr)) == 0) {
+        cout << "Подключение к серверу установлено!" << endl;
+        cout << "Вводите данные или 'exit' для выхода" << endl;
+
+        while (true) {
+            cout << "\n--- Новый сотрудник ---" << endl;
+            cout << "Имя (или 'exit'): ";
+            cin.getline(E.name, 50);
+
+            if (string(E.name) == "exit") {
+                send(sock, (char*)&E, sizeof(E), 0);
+                cout << "Выход..." << endl;
+                break;
+            }
+
+            cout << "Завершенные проекты: ";
+            cin >> E.projects;
+
+            cout << "Сверхурочные часы: ";
+            cin >> E.overtime;
+
+            cout << "Эффективность (1-5): ";
+            cin >> E.efficiency;
+
+            cout << "Инициативы: ";
+            cin >> E.initiatives;
+
+            cin.ignore();
+
+            send(sock, (char*)&E, sizeof(E), 0);
+            cout << "Данные отправлены" << endl;
+
+            char bonusCode[BUF_SIZE];
+            int received = recv(sock, bonusCode, sizeof(bonusCode), 0);
+
+            if (received > 0) {
+                string code(bonusCode);
+                string bonusText = getBonusText(code);
+
+                cout << "\n>>> РЕЗУЛЬТАТ <<<" << endl;
+                cout << "Сотрудник: " << E.name << endl;
+                cout << "Премия: " << bonusText << endl;
+                cout << "----------------" << endl;
+            }
+        }
+    }
+    else {
+        cout << "Ошибка подключения!" << endl;
+    }
+
+    closesocket(sock);
     WSACleanup();
     return 0;
 }
